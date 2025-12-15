@@ -1,0 +1,2 @@
+[console_scripts]
+spagent = spagent.cli:app

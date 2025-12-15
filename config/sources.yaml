@@ -1,0 +1,13 @@
+- name: "SESC-SP"
+  url: "https://www.sescsp.org.br/programacao/"
+  city: "São Paulo"
+  type: ["teatro", "música", "exposição"]
+  selectors:
+    item: "article.card-programacao"
+    title: "h3"
+    date: "time"
+    link: "a::attr(href)"
+- name: "Eventbrite-SP"
+  url: "https://www.eventbrite.com/d/brazil--s%C3%A3o-paulo/events/"
+  city: "São Paulo"
+  type: ["música", "samba", "teatro"]

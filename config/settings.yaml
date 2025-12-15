@@ -1,0 +1,16 @@
+llm:
+  provider: ${LLM_PROVIDER:ollama}
+  model: ${LLM_MODEL:llama3.1:8b-instruct}
+embeddings:
+  provider: sentence-transformers
+  model: ${EMBEDDINGS_MODEL:all-MiniLM-L6-v2}
+search:
+  provider: ${SEARCH_PROVIDER:duckduckgo}
+  country: br
+  language: pt-BR
+  safe: moderate
+retrieval:
+  persist_path: data/vectordb
+  logging:
+  level: INFO
+  json: true
