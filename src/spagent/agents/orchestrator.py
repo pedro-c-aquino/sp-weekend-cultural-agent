@@ -1,6 +1,7 @@
 from .planner import Planner
 from .actor import Actor
 from .evaluator import Evaluator
+from ..tools.scraper import scrape_pages
 from ..llm import LLM
 from ..tools.calendar import current_weekend
 
@@ -43,16 +44,29 @@ class Orchestrator:
                 break
 
         score = self.evaluator.score([])  # evaluator can later inspect snippets
-        if mode == "serp":
-            return {"queries": queries, "results": results, "score": score.model_dump()}
+        # if mode == "serp":
+        #     return {"queries": queries, "results": results, "score": score.model_dump()}
 
         # optional crawl enrichment
-        urls = [r["url"] for r in results[:10]]
-        htmls = await self.actor.crawl(urls)
-        await self.actor.aclose()
+        urls = [r["url"] for r in results]
+        html_events = await scrape_pages(urls, concurrency=6, delay=0.15)
+        url_to_events = {}
+        for e in html_events:
+            url_to_events.setdefault(e["url"], []).append(e)
+
+        merged = []
+
+        for r in results:
+            u = r["url"]
+            scraped = url_to_events.get(u, [])
+            if scraped:
+                r["events_on_page"] = scraped
+            else:
+                r["events_on_page"] = []
+            merged.append(r)
+
         return {
             "queries": queries,
             "results": results,
-            "html": [{"url": u, "len": len(h)} for u, h in htmls],
             "score": score.model_dump(),
         }

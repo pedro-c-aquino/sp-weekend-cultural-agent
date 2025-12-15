@@ -128,5 +128,4 @@ class Planner:
                 clean.append(q)
 
         # Optional: print for debugging
-        print({"queries": clean})
         return clean
