@@ -3,21 +3,18 @@ from datetime import datetime
 from typing import Optional, List
 
 
-class Source(BaseModel):
-    name: str
-    url: HttpUrl | str
-
-
 class Event(BaseModel):
     title: str
-    starts_at: datetime
-    ends_at: Optional[datetime] = None
+    starts_at: Optional[str]
+    ends_at: Optional[str] = None
+    date_text: Optional[str] = None
     venue: Optional[str] = None
     city: Optional[str] = "São Paulo"
     category: Optional[str] = None
     price: Optional[str] = None
     link: Optional[str] = None
-    source: Optional[Source] = None
+    source_name: Optional[str] = None
+    source_url: Optional[str] = None
 
 
 class EvalScore(BaseModel):

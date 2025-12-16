@@ -1,7 +1,7 @@
 from bs4 import BeautifulSoup
 from datetime import datetime
 from .calendar import TZ
-from ..schemas import Event, Source
+from ..schemas import Event
 
 
 MONTHS_PT = {
@@ -34,7 +34,6 @@ def parse_generic_listing(html: str, base_url: str) -> list[Event]:
                     title=text[:120],
                     starts_at=datetime.now(TZ),
                     link=a.get("href"),
-                    source=Source(name="generic", url=base_url),
                 )
             )
     return events
