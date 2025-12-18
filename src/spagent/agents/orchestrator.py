@@ -18,11 +18,15 @@ class Orchestrator:
     async def weekend_run(self, focus: str = "samba", mode: str = "serp"):
         fri, sun = current_weekend()
         weekend_range = f"{fri.date()} to {sun.date()}"
-        queries = self.planner.plan(
+        queries = await self.planner.plan(
             f"Eventos de {fri.date()} a {sun.date()} em São Paulo; foco: {focus}"
         )
 
         serp = []
+        print(
+            "================================ QUERIES ===================================\n",
+            queries,
+        )
         for q in queries:
             serp.extend(self.actor.websearch(q, k=12, timelimit="w"))
 
@@ -45,21 +49,33 @@ class Orchestrator:
             )
             if len(results) >= 30:
                 break
+        print("==================== SERP Results =========================\n", results)
+        print("Starting scrapping")
         pages = await scrape_pages(r["url"] for r in results)
+        print("==================== SCRAPE RESULTS ==========================\n", pages)
+        print("Start parsing")
 
         url_to_events = {}
         for page in pages:
             events = await self.parser.parse(
-                html=page["html"],
+                text=page["text"],
                 page_url=page["url"],
                 weekend_range=weekend_range,
                 focus=focus,
             )
             url_to_events[page["url"]] = events
-
+        print(
+            "================================ PARSING RESULTS ===================================\n",
+            url_to_events,
+        )
         for r in results:
             r["events_on_page"] = url_to_events.get(r["url"], [])
 
-        score = self.evaluator.score(results)
+        all_events = []
+        for r in results:
+            evs = r.get("events_on_page") or []
+            all_events.extend(evs)
+
+        score = self.evaluator.score(all_events)
 
         return {"queries": queries, "results": results, "score": score.model_dump()}

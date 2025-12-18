@@ -1,10 +1,18 @@
 import re
 from urllib.parse import urlparse
+from bs4 import BeautifulSoup
 
 PT_WEEKEND = r"(sexta|sexta-feira|sábado|sabado|domingo|fim de semana|final de semana|hoje|amanh[ãa])"
 PT_SP = r"(s[aã]o paulo|sao paulo|sp\\b)"
 PT_INTENT = (
     r"(samba|show|teatro|pe[cç]a|exposi[cç][aã]o|evento|agenda|programa[cç][aã]o)"
+)
+
+PT_EVENT_LINE = re.compile(
+    r"(data|dia|às|as \d{1,2}h|\d{1,2}/\d{1,2}|"
+    r"sexta|sábado|sabado|domingo|fim de semana|"
+    r"samba|show|teatro|pe[cç]a|exposi[cç][aã]o|evento|agenda)",
+    re.IGNORECASE,
 )
 
 
@@ -55,3 +63,48 @@ def dedupe_serp(items: list[dict]) -> list[dict]:
         seen.add(u)
         out.append(it)
     return out
+
+
+# file: actor/html_cleaner.py (or inline in scraper.py)
+
+
+def html_to_text(html: str) -> str:
+    MAX_LINES = 120
+    MIN_LINE_LEN = 20
+    MAX_CHARS = 2000
+
+    soup = BeautifulSoup(html, "lxml")
+
+    # remove junk
+    for tag in soup(
+        [
+            "script",
+            "style",
+            "nav",
+            "footer",
+            "header",
+            "aside",
+            "noscript",
+            "iframe",
+            "svg",
+        ]
+    ):
+        tag.decompose()
+
+    text = soup.get_text("\n", strip=True)
+
+    lines = []
+    for line in text.splitlines():
+        line = line.strip()
+        if len(line) < MIN_LINE_LEN:
+            continue
+        if not PT_EVENT_LINE.search(line):
+            continue
+
+        lines.append(line)
+        total_chars += len(line) + 1
+
+        if len(lines) >= MAX_LINES or total_chars >= MAX_CHARS:
+            break
+
+    return "\n".join(lines)[:MAX_CHARS]

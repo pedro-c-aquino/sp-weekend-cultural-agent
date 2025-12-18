@@ -1,6 +1,7 @@
 # llm.py
 from typing import Type, TypeVar, get_origin, get_args
 import json
+import re
 
 from pydantic import ValidationError, BaseModel
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -16,28 +17,54 @@ T = TypeVar("T")
 
 def _extract_json(text: str) -> str:
     """
-    Extract JSON from:
-    - ```json ... ```
-    - ``` ... ```
-    - raw JSON
+    Extract the first valid JSON object or array from text
+    by matching balanced braces/brackets.
     """
     text = text.strip()
 
-    # Case 1: fenced code block
+    # Remove code fences if present
     if text.startswith("```"):
         lines = text.splitlines()
-        # remove first and last fence
         if lines[0].startswith("```"):
             lines = lines[1:]
         if lines and lines[-1].startswith("```"):
             lines = lines[:-1]
-        return "\n".join(lines).strip()
+        text = "\n".join(lines).strip()
 
-    # Case 2: find first JSON object/array
-    for start in ("[", "{"):
-        idx = text.find(start)
-        if idx != -1:
-            return text[idx:].strip()
+    start = None
+    stack = []
+    for i, ch in enumerate(text):
+        if ch in "{[":
+            if start is None:
+                start = i
+            stack.append(ch)
+        elif ch in "}]":
+            if not stack:
+                continue
+            opening = stack.pop()
+            if not stack:
+                # Found matching end
+                return text[start : i + 1]
+
+    return text  # fallback (will fail loudly)
+
+
+def _autoclose_json(text: str) -> str:
+    """
+    Close unbalanced JSON braces/brackets.
+    Last-resort repair for truncated outputs.
+    """
+    text = text.rstrip()
+
+    open_curly = text.count("{")
+    close_curly = text.count("}")
+    open_square = text.count("[")
+    close_square = text.count("]")
+
+    if close_curly < open_curly:
+        text += "}" * (open_curly - close_curly)
+    if close_square < open_square:
+        text += "]" * (open_square - close_square)
 
     return text
 
@@ -85,8 +112,12 @@ class LLM:
             system
             + """
 
-You MUST respond with VALID JSON ONLY.
-Do not include markdown, comments, or explanations.
+STRICT RULES:
+- Return ONLY valid JSON.
+- Do NOT use markdown or code fences.
+- Return at most 5 items.
+- Always close all JSON objects and arrays.
+- If unsure, return an empty array [].
 """
         )
 
@@ -94,7 +125,6 @@ Do not include markdown, comments, or explanations.
 
         for attempt in range(max_retries + 1):
             raw = self.ask(json_system, user)
-
             try:
                 clean = _extract_json(raw)
                 data = json.loads(clean)
@@ -114,15 +144,31 @@ Do not include markdown, comments, or explanations.
             except (json.JSONDecodeError, ValidationError) as e:
                 last_error = e
 
-                # Strengthen instruction on retry
+                try:
+                    repaired = _autoclose_json(clean)
+                    data = json.loads(repaired)
+                    origin = get_origin(schema)
+                    if origin is list:
+                        model = get_args(schema)[0]
+                        return [model.model_validate(x) for x in data]
+                    if issubclass(schema, BaseModel):
+                        return schema.model_validate(data)
+                except Exception:
+                    pass
+
+                # Repair-only retry prompt
                 user = f"""
-Your previous response was invalid.
+            The JSON below is INVALID.
 
-ERROR:
-{e}
+            Fix it.
+            Do NOT add new items.
+            Do NOT remove existing items.
+            Do NOT use markdown.
+            Return ONLY valid JSON.
 
-Return ONLY valid JSON that matches the schema.
-"""
+            INVALID JSON:
+            {clean}
+            """
 
         raise RuntimeError(
             f"LLM JSON parsing failed after {max_retries + 1} attempts: {last_error}"

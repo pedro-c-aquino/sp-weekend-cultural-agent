@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 
 import aiohttp
 
+from spagent.utils import html_to_text
+
 
 DEFAULT_HEADERS = {
     "User-Agent": "sp-weekend-bot/1.0 (+https://github.com/pedro-c-aquino/sp-weekend-cultural-agent)"
@@ -38,13 +40,23 @@ async def fetch_all(
 
         async def _fetch_one(url: str):
             async with semaphore:
-                html = await fetch(session, url)
+                raw_html = await fetch(session, url)
                 await asyncio.sleep(delay)
+                if raw_html is None:
+                    return {
+                        "url": url,
+                        "ok": False,
+                        "text": None,
+                        "fetched_at": datetime.now(timezone.utc).isoformat(),
+                    }
 
+                clean_text = html_to_text(raw_html)
                 return {
                     "url": url,
-                    "html": html,
-                    "ok": html is not None,
+                    "text": clean_text,
+                    "ok": True,
+                    "html_len": len(raw_html),
+                    "text_len": len(clean_text),
                     "fetched_at": datetime.now(timezone.utc).isoformat(),
                 }
 
