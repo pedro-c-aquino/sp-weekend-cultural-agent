@@ -1,4 +1,5 @@
 import json
+from pdb import run
 from .planner import Planner
 from .actor import Actor
 from .evaluator import Evaluator
@@ -6,6 +7,7 @@ from .parser import Parser
 from ..tools.scraper import scrape_pages
 from ..llm import LLM
 from ..tools.calendar import current_weekend
+from .runner import run_agent
 
 
 class Orchestrator:
@@ -19,13 +21,10 @@ class Orchestrator:
     async def weekend_run(self, focus: str, mode: str = "serp"):
         fri, sun = current_weekend()
         weekend_range = f"{fri.date()} to {sun.date()}"
-        plan = await self.planner.plan(
-            f"Eventos de {fri.date()} a {sun.date()} em São Paulo;"
-        )
-        print(
-            "================================ PLAN ===================================\n",
-            plan,
-        )
+        user_request = f"Eventos de {fri.date()} a {sun.date()} em São Paulo;"
+
+        await run_agent(user_request, planner=self.planner)
+
         # for q in queries:
         #     serp.extend(self.actor.websearch(q, k=12, timelimit="w"))
 
