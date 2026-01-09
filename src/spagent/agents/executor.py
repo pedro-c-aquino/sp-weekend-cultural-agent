@@ -1,6 +1,14 @@
 import time
 from typing import Dict, Callable, Awaitable, Any, List
-from ..schemas import Plan, PlanStep, StepResult, ExecutionSummary
+from ..schemas import (
+    EventList,
+    FetchResult,
+    Plan,
+    PlanStep,
+    StepResult,
+    ExecutionSummary,
+    Event,
+)
 
 ToolFn = Callable[..., Awaitable[Any]]
 
@@ -8,7 +16,8 @@ ToolFn = Callable[..., Awaitable[Any]]
 class Executor:
     def __init__(self, tools: Dict[str, ToolFn]):
         self.tools = tools
-        self.events = []
+        self.pages: List[FetchResult] = []
+        self.events: List[Event] = []
         self.sources = set()
         self.step_results: List[StepResult] = []
 
@@ -26,20 +35,30 @@ class Executor:
         start = time.perf_counter()
 
         try:
-            result = await fn(**step.params)
-
             duration_ms = int((time.perf_counter() - start) * 1000)
 
-            if isinstance(result, list):
-                if step.tool.startswith("crawl") or step.tool == "websearch_events":
-                    self.sources.add(step.tool)
-                    self.events.extend(result)
-                else:
-                    self.events = result
+            if step.tool.startswith("fetch_"):
+                page: FetchResult = await fn()
+                self.pages.append(page)
+                self.sources.add(page.source)
 
-                events_found = len(result)
-            else:
                 events_found = None
+
+            elif step.tool == "extract_events":
+                extracted: EventList = []
+
+                for page in self.pages:
+                    batch = await fn(page)
+                    extracted.extend(batch)
+
+                self.events.extend(extracted)
+                events_found = len(extracted)
+
+            elif step.tool in ("dedupe_events", "validate_events"):
+                self.events = await fn(self.events)
+                events_found = len(self.events)
+
+            duration_ms = int((time.perf_counter() - start) * 1000)
 
             sr = StepResult(
                 tool=step.tool,
@@ -49,7 +68,12 @@ class Executor:
             )
 
         except Exception as e:
-            sr = StepResult(tool=step.tool, ok=False, errors=1, notes=str(e))
+            sr = StepResult(
+                tool=step.tool,
+                ok=False,
+                errors=1,
+                notes=str(e),
+            )
 
         self.step_results.append(sr)
         return sr

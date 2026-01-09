@@ -4,7 +4,7 @@ from typing import Any, Dict, Literal, Optional, List
 
 
 class Event(BaseModel):
-    title: str
+    title: Optional[str]
     starts_at: Optional[str]
     ends_at: Optional[str] = None
     date_text: Optional[str] = None
@@ -15,6 +15,10 @@ class Event(BaseModel):
     link: Optional[str] = None
     source_name: Optional[str] = None
     source_url: Optional[str] = None
+
+
+class EventList(BaseModel):
+    events: List[Event]
 
 
 class EvalScore(BaseModel):
@@ -38,10 +42,11 @@ class Result(BaseModel):
 
 
 ToolName = Literal[
-    "crawl_sympla",
-    "crawl_sesc",
-    "crawl_eventim",
-    "crawl_sao_paulo_secreto",
+    "fetch_sympla",
+    "fetch_sesc",
+    "fetch_eventim",
+    "fetch_sao_paulo_secreto",
+    "extract_events",
     "dedupe_events",
     "validate_events",
     "websearch_events",
@@ -87,3 +92,9 @@ class ExecutionSummary(BaseModel):
     total_events: int
     sources_used: List[str]
     errors: int = 0
+
+
+class FetchResult(BaseModel):
+    url: str
+    html: str
+    source: str
