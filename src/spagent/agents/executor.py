@@ -49,7 +49,7 @@ class Executor:
 
                 for page in self.pages:
                     batch = await fn(page)
-                    extracted.extend(batch)
+                    extracted.extend(batch.events or [])
 
                 self.events.extend(extracted)
                 events_found = len(extracted)
